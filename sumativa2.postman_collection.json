@@ -1,10 +1,59 @@
 {
   "info": {
-    "name": "Sumativa 2 - Patron BFF",
-    "description": "ms-bff (8080) consume ms-backend (8081). 9 endpoints de canal + endpoints internos y casos de error.",
+    "name": "Sumativa 2 - Patron BFF (JWT + auditoria Kafka)",
+    "description": "ms-bff protegido con JWT de auth-service. Ejecutar primero 'Auth > Login' (guarda {{token}}). Completar username/password con AUTH_USERNAME/AUTH_PASSWORD del .env de sumativa3. Guia completa: sumativa3-backend3/INSTRUCCIONES_POSTMAN.txt",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Login (obtiene y guarda el token)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.collectionVariables.set('token', body.access_token);",
+                  "pm.test('token_type Bearer', () => pm.expect(body.token_type).to.eql('Bearer'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{username}}\",\n  \"password\": \"{{password}}\"\n}"
+            },
+            "url": {
+              "raw": "{{auth_url}}/auth/login",
+              "host": [
+                "{{auth_url}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
     {
       "name": "BFF Web",
       "item": [
@@ -19,12 +68,10 @@
               }
             ],
             "url": {
-              "raw": "http://localhost:8080/api/web/cuentas/110",
-              "protocol": "http",
+              "raw": "{{bff_url}}/api/web/cuentas/110",
               "host": [
-                "localhost"
+                "{{bff_url}}"
               ],
-              "port": "8080",
               "path": [
                 "api",
                 "web",
@@ -46,12 +93,10 @@
               }
             ],
             "url": {
-              "raw": "http://localhost:8080/api/web/intereses/110",
-              "protocol": "http",
+              "raw": "{{bff_url}}/api/web/intereses/110",
               "host": [
-                "localhost"
+                "{{bff_url}}"
               ],
-              "port": "8080",
               "path": [
                 "api",
                 "web",
@@ -73,12 +118,10 @@
               }
             ],
             "url": {
-              "raw": "http://localhost:8080/api/web/transacciones/110",
-              "protocol": "http",
+              "raw": "{{bff_url}}/api/web/transacciones/110",
               "host": [
-                "localhost"
+                "{{bff_url}}"
               ],
-              "port": "8080",
               "path": [
                 "api",
                 "web",
@@ -105,12 +148,10 @@
               }
             ],
             "url": {
-              "raw": "http://localhost:8080/api/movil/cuentas/101",
-              "protocol": "http",
+              "raw": "{{bff_url}}/api/movil/cuentas/101",
               "host": [
-                "localhost"
+                "{{bff_url}}"
               ],
-              "port": "8080",
               "path": [
                 "api",
                 "movil",
@@ -132,12 +173,10 @@
               }
             ],
             "url": {
-              "raw": "http://localhost:8080/api/movil/intereses/110",
-              "protocol": "http",
+              "raw": "{{bff_url}}/api/movil/intereses/110",
               "host": [
-                "localhost"
+                "{{bff_url}}"
               ],
-              "port": "8080",
               "path": [
                 "api",
                 "movil",
@@ -159,12 +198,10 @@
               }
             ],
             "url": {
-              "raw": "http://localhost:8080/api/movil/transacciones/110",
-              "protocol": "http",
+              "raw": "{{bff_url}}/api/movil/transacciones/110",
               "host": [
-                "localhost"
+                "{{bff_url}}"
               ],
-              "port": "8080",
               "path": [
                 "api",
                 "movil",
@@ -191,12 +228,10 @@
               }
             ],
             "url": {
-              "raw": "http://localhost:8080/api/cajeros/cuentas/110",
-              "protocol": "http",
+              "raw": "{{bff_url}}/api/cajeros/cuentas/110",
               "host": [
-                "localhost"
+                "{{bff_url}}"
               ],
-              "port": "8080",
               "path": [
                 "api",
                 "cajeros",
@@ -218,12 +253,10 @@
               }
             ],
             "url": {
-              "raw": "http://localhost:8080/api/cajeros/intereses/110",
-              "protocol": "http",
+              "raw": "{{bff_url}}/api/cajeros/intereses/110",
               "host": [
-                "localhost"
+                "{{bff_url}}"
               ],
-              "port": "8080",
               "path": [
                 "api",
                 "cajeros",
@@ -245,12 +278,10 @@
               }
             ],
             "url": {
-              "raw": "http://localhost:8080/api/cajeros/transacciones/110",
-              "protocol": "http",
+              "raw": "{{bff_url}}/api/cajeros/transacciones/110",
               "host": [
-                "localhost"
+                "{{bff_url}}"
               ],
-              "port": "8080",
               "path": [
                 "api",
                 "cajeros",
@@ -277,17 +308,18 @@
               }
             ],
             "url": {
-              "raw": "http://localhost:8081/api/cuentas-anuales/110",
-              "protocol": "http",
+              "raw": "{{backend_url}}/api/cuentas-anuales/110",
               "host": [
-                "localhost"
+                "{{backend_url}}"
               ],
-              "port": "8081",
               "path": [
                 "api",
                 "cuentas-anuales",
                 "110"
               ]
+            },
+            "auth": {
+              "type": "noauth"
             }
           },
           "response": []
@@ -303,17 +335,18 @@
               }
             ],
             "url": {
-              "raw": "http://localhost:8081/api/intereses/110",
-              "protocol": "http",
+              "raw": "{{backend_url}}/api/intereses/110",
               "host": [
-                "localhost"
+                "{{backend_url}}"
               ],
-              "port": "8081",
               "path": [
                 "api",
                 "intereses",
                 "110"
               ]
+            },
+            "auth": {
+              "type": "noauth"
             }
           },
           "response": []
@@ -329,22 +362,24 @@
               }
             ],
             "url": {
-              "raw": "http://localhost:8081/api/transacciones/110",
-              "protocol": "http",
+              "raw": "{{backend_url}}/api/transacciones/110",
               "host": [
-                "localhost"
+                "{{backend_url}}"
               ],
-              "port": "8081",
               "path": [
                 "api",
                 "transacciones",
                 "110"
               ]
+            },
+            "auth": {
+              "type": "noauth"
             }
           },
           "response": []
         }
-      ]
+      ],
+      "description": "Solo en ejecucion local con Maven: con Docker ms-backend no se publica."
     },
     {
       "name": "Errores",
@@ -360,12 +395,10 @@
               }
             ],
             "url": {
-              "raw": "http://localhost:8080/api/web/cuentas/99999",
-              "protocol": "http",
+              "raw": "{{bff_url}}/api/web/cuentas/99999",
               "host": [
-                "localhost"
+                "{{bff_url}}"
               ],
-              "port": "8080",
               "path": [
                 "api",
                 "web",
@@ -387,12 +420,10 @@
               }
             ],
             "url": {
-              "raw": "http://localhost:8080/api/cajeros/intereses/99999",
-              "protocol": "http",
+              "raw": "{{bff_url}}/api/cajeros/intereses/99999",
               "host": [
-                "localhost"
+                "{{bff_url}}"
               ],
-              "port": "8080",
               "path": [
                 "api",
                 "cajeros",
@@ -414,12 +445,10 @@
               }
             ],
             "url": {
-              "raw": "http://localhost:8080/api/web/cuentas/999999999999999999999999999999999999999999999999999999999999",
-              "protocol": "http",
+              "raw": "{{bff_url}}/api/web/cuentas/999999999999999999999999999999999999999999999999999999999999",
               "host": [
-                "localhost"
+                "{{bff_url}}"
               ],
-              "port": "8080",
               "path": [
                 "api",
                 "web",
@@ -431,6 +460,297 @@
           "response": []
         }
       ]
+    },
+    {
+      "name": "Seguridad (401 / 403)",
+      "item": [
+        {
+          "name": "401 - sin token",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{bff_url}}/api/movil/cuentas/110",
+              "host": [
+                "{{bff_url}}"
+              ],
+              "path": [
+                "api",
+                "movil",
+                "cuentas",
+                "110"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('401', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "401 - token invalido",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{bff_url}}/api/cajeros/cuentas/110",
+              "host": [
+                "{{bff_url}}"
+              ],
+              "path": [
+                "api",
+                "cajeros",
+                "cuentas",
+                "110"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "abc.def.ghi",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('401', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "403 - token de usuario en POST /auditoria/eventos (producer)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "url": {
+              "raw": "{{producer_url}}/auditoria/eventos",
+              "host": [
+                "{{producer_url}}"
+              ],
+              "path": [
+                "auditoria",
+                "eventos"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Auditoria (consumer-service)",
+      "item": [
+        {
+          "name": "Llamada al BFF con X-Request-Id",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "postman-{{$timestamp}}"
+              }
+            ],
+            "url": {
+              "raw": "{{bff_url}}/api/movil/cuentas/110",
+              "host": [
+                "{{bff_url}}"
+              ],
+              "path": [
+                "api",
+                "movil",
+                "cuentas",
+                "110"
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('requestId', pm.response.headers.get('X-Request-Id'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Eventos procesados (ultimos 20)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{consumer_url}}/auditoria/eventos?limite=20",
+              "host": [
+                "{{consumer_url}}"
+              ],
+              "path": [
+                "auditoria",
+                "eventos?limite=20"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Evento por requestId",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{consumer_url}}/auditoria/eventos?requestId={{requestId}}",
+              "host": [
+                "{{consumer_url}}"
+              ],
+              "path": [
+                "auditoria",
+                "eventos?requestId={{requestId}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Estado del listener de auditoria",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{consumer_url}}/kafka-listener/auditoriaBffListener/estado",
+              "host": [
+                "{{consumer_url}}"
+              ],
+              "path": [
+                "kafka-listener",
+                "auditoriaBffListener",
+                "estado"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "bff_url",
+      "value": "http://localhost:18080"
+    },
+    {
+      "key": "auth_url",
+      "value": "http://localhost:8080"
+    },
+    {
+      "key": "consumer_url",
+      "value": "http://localhost:8082"
+    },
+    {
+      "key": "producer_url",
+      "value": "http://127.0.0.1:8081"
+    },
+    {
+      "key": "backend_url",
+      "value": "http://localhost:8081"
+    },
+    {
+      "key": "username",
+      "value": ""
+    },
+    {
+      "key": "password",
+      "value": ""
+    },
+    {
+      "key": "token",
+      "value": ""
+    },
+    {
+      "key": "requestId",
+      "value": ""
     }
   ]
 }

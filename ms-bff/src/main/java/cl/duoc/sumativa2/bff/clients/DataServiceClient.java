@@ -16,6 +16,8 @@ import cl.duoc.sumativa2.bff.exceptions.DatosNoEncontradosException;
 import cl.duoc.sumativa2.bff.exceptions.ParametroInvalidoException;
 import cl.duoc.sumativa2.bff.exceptions.ServicioDatosNoDisponibleException;
 
+import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
+import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import lombok.RequiredArgsConstructor;
 
 /**
@@ -28,6 +30,11 @@ import lombok.RequiredArgsConstructor;
  * (cuentas_anuales: fecha DESC, id DESC; intereses: id DESC; transacciones:
  * fecha DESC, registro_id DESC), por lo que "los N ultimos registros" son
  * siempre los N primeros elementos de la lista.
+ *
+ * <p>ms-backend se resuelve por nombre logico (Eureka + Spring Cloud LoadBalancer): si una replica
+ * no responde, el LoadBalancer reintenta una vez en otra instancia. El circuit breaker "msBackend"
+ * solo cuenta las fallas de disponibilidad (503); los 404/400 son respuestas validas del backend.
+ * Con el circuito abierto el BFF responde 503 de inmediato, con el mismo mensaje de siempre.
  */
 @Component
 @RequiredArgsConstructor
@@ -43,7 +50,10 @@ public class DataServiceClient {
             new ParameterizedTypeReference<>() {
             };
 
+    private static final String MENSAJE_NO_DISPONIBLE = "El microservicio de datos no esta disponible en este momento";
+
     private final RestClient dataServiceRestClient;
+    private final CircuitBreakerRegistry circuitBreakerRegistry;
 
     public List<CuentaAnualBackendDTO> obtenerCuentasAnuales(String cuentaId) {
         return obtenerLista("/api/cuentas-anuales/{cuentaId}", cuentaId, TIPO_CUENTAS,
@@ -68,7 +78,22 @@ public class DataServiceClient {
 
         List<T> respuesta;
         try {
-            respuesta = dataServiceRestClient.get()
+            respuesta = circuitBreakerRegistry.circuitBreaker("msBackend")
+                    .executeSupplier(() -> llamar(uri, identificador, tipo, mensajeNoEncontrado));
+        } catch (CallNotPermittedException ex) {
+            throw new ServicioDatosNoDisponibleException(MENSAJE_NO_DISPONIBLE, ex);
+        }
+
+        if (respuesta == null || respuesta.isEmpty()) {
+            throw new DatosNoEncontradosException(mensajeNoEncontrado);
+        }
+        return respuesta;
+    }
+
+    private <T> List<T> llamar(String uri, String identificador,
+                               ParameterizedTypeReference<List<T>> tipo, String mensajeNoEncontrado) {
+        try {
+            return dataServiceRestClient.get()
                     .uri(uri, identificador)
                     .retrieve()
                     .body(tipo);
@@ -77,13 +102,11 @@ public class DataServiceClient {
         } catch (HttpClientErrorException.BadRequest ex) {
             throw new ParametroInvalidoException("El identificador '" + identificador + "' no es valido");
         } catch (ResourceAccessException | HttpServerErrorException ex) {
-            throw new ServicioDatosNoDisponibleException(
-                    "El microservicio de datos no esta disponible en este momento", ex);
+            throw new ServicioDatosNoDisponibleException(MENSAJE_NO_DISPONIBLE, ex);
+        } catch (IllegalStateException | IllegalArgumentException ex) {
+            // Spring Cloud LoadBalancer sin ninguna replica registrada: "No instances available for
+            // ms-backend" (sin reintentos) o "Service Instance cannot be null" (con reintentos)
+            throw new ServicioDatosNoDisponibleException(MENSAJE_NO_DISPONIBLE, ex);
         }
-
-        if (respuesta == null || respuesta.isEmpty()) {
-            throw new DatosNoEncontradosException(mensajeNoEncontrado);
-        }
-        return respuesta;
     }
 }

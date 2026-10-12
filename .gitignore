@@ -1,0 +1,14 @@
+# Secretos y configuracion local
+.env
+.env.*
+!.env.example
+
+# Build
+target/
+.mvn/wrapper/maven-wrapper.jar
+
+# IDE / SO
+.idea/
+*.iml
+.vscode/
+.DS_Store

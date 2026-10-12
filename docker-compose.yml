@@ -1,34 +1,73 @@
-# Levanta ms-backend + ms-bff. Los datos se leen del contenedor MySQL ya
-# existente (mysql-dev, publicado en el puerto 3306 del host): este compose
-# NO crea otra base de datos.
-# Puertos del host elegidos para no chocar con 8080/8081 ya en uso;
-# se pueden cambiar con variables de entorno (ej: BFF_PORT=19080 docker compose up -d).
+# Levanta ms-backend (N replicas) + ms-bff integrados con la plataforma de sumativa3-backend3
+# (discovery-service/Eureka, auth-service, producer-service, consumer-service y Kafka).
+#
+# Requisitos previos:
+#   1. MySQL existente (contenedor mysql-dev publicado en el puerto 3306 del host): este compose
+#      NO crea otra base de datos.
+#   2. Plataforma sumativa3 en ejecucion: crea la red compartida "sumativa-net" y Eureka.
+#        (cd ../sumativa3-backend3 && docker compose up -d --build)
+#   3. Archivo .env (no versionado) creado desde .env.example, con los mismos JWT_SECRET,
+#      AUTH_CLIENT_ID/SECRET y EUREKA_USERNAME/PASSWORD que el .env de sumativa3.
+#
+#   docker compose up -d --build
+#   docker compose up -d --scale ms-backend=3      # cambiar replicas en caliente
+#
+# ms-backend no se publica en el host: solo ms-bff lo alcanza, por Eureka + LoadBalancer.
 name: sumativa2
+
+networks:
+  sumativa-net:
+    name: ${SHARED_NETWORK:-sumativa-net}
+    external: true
+
+x-eureka-client-env: &eureka-client-env
+  EUREKA_URL: http://${EUREKA_USERNAME:?Defina EUREKA_USERNAME en .env}:${EUREKA_PASSWORD:?Defina EUREKA_PASSWORD en .env}@discovery-service:8761/eureka/
+  # Una sola red: cada replica se registra con su IP en sumativa-net
+  EUREKA_PREFER_IP: "true"
 
 services:
   ms-backend:
     build: ./ms-backend
-    image: sumativa2/ms-backend:1.0.0
-    container_name: sumativa2-ms-backend
+    image: sumativa2/ms-backend:1.1.0
+    networks: [sumativa-net]
+    deploy:
+      replicas: ${MS_BACKEND_REPLICAS:-2}
     environment:
+      <<: *eureka-client-env
       # Desde un contenedor "localhost" es el propio contenedor; host.docker.internal
       # apunta a la maquina anfitriona, donde mysql-dev publica el 3306.
-      SPRING_DATASOURCE_URL: jdbc:mysql://host.docker.internal:${MYSQL_HOST_PORT:-3306}/myapp
-      SPRING_DATASOURCE_USERNAME: myuser
-      SPRING_DATASOURCE_PASSWORD: mypassword
+      SPRING_DATASOURCE_URL: jdbc:mysql://${MYSQL_HOST:-host.docker.internal}:${MYSQL_HOST_PORT:-3306}/${MYSQL_DATABASE:-myapp}
+      SPRING_DATASOURCE_USERNAME: ${MYSQL_USER:?Defina MYSQL_USER en .env}
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_PASSWORD:?Defina MYSQL_PASSWORD en .env}
+      LOG_LEVEL_APP: ${LOG_LEVEL_APP:-INFO}
+      # Access log en stdout con X-Request-Id: permite ver que replica atendio cada llamada
+      ACCESS_LOG_ENABLED: ${ACCESS_LOG_ENABLED:-true}
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    ports:
-      - "${BACKEND_PORT:-18081}:8081"
-    restart: on-failure
+    # Sin "ports": servicio interno. El HEALTHCHECK del Dockerfile consulta /actuator/health.
+    restart: unless-stopped
 
   ms-bff:
     build: ./ms-bff
-    image: sumativa2/ms-bff:1.0.0
+    image: sumativa2/ms-bff:1.1.0
     container_name: sumativa2-ms-bff
+    networks: [sumativa-net]
     environment:
-      DATA_SERVICE_URL: http://ms-backend:8081
+      <<: *eureka-client-env
+      # Nombre logico resuelto por Eureka + Spring Cloud LoadBalancer (sin IP ni puerto fijo)
+      DATA_SERVICE_URL: http://ms-backend
+      JWT_SECRET: ${JWT_SECRET:?Defina JWT_SECRET en .env}
+      JWT_ISSUER: ${JWT_ISSUER:-sumativa3-auth-service}
+      BFF_JWT_AUDIENCE: ${BFF_JWT_AUDIENCE:-bff-api}
+      # Auditoria: token de servicio (auth-service) y publicacion en producer-service
+      AUDIT_ENABLED: ${AUDIT_ENABLED:-true}
+      AUTH_CLIENT_ID: ${AUTH_CLIENT_ID:?Defina AUTH_CLIENT_ID en .env}
+      AUTH_CLIENT_SECRET: ${AUTH_CLIENT_SECRET:?Defina AUTH_CLIENT_SECRET en .env}
+      AUDIT_QUEUE_CAPACITY: ${AUDIT_QUEUE_CAPACITY:-1000}
+      LOG_LEVEL_APP: ${LOG_LEVEL_APP:-INFO}
     ports:
-      - "${BFF_PORT:-18080}:8080"
+      # Unico punto de entrada externo de este proyecto
+      - "${BFF_BIND:-0.0.0.0}:${BFF_PORT:-18080}:8080"
     depends_on:
-      - ms-backend
+      ms-backend: { condition: service_healthy }
+    restart: unless-stopped
